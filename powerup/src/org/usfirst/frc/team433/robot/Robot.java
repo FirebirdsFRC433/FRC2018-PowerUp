@@ -45,12 +45,9 @@ public class Robot extends IterativeRobot {
 	Joystick xbox = new Joystick(1);
 
 	// Elevator
-	WPI_TalonSRX elevatorExtension = new WPI_TalonSRX(6); // Talon number needs
-															// to be changed
-	VictorSPX intakeMotor1 = new VictorSPX(0); // Talon number needs to be
-												// changed
-	VictorSPX intakeMotor2 = new VictorSPX(1); // Talon number needs to be
-												// changed
+	WPI_TalonSRX elevatorExtension = new WPI_TalonSRX(6);
+	VictorSPX intakeMotor1 = new VictorSPX(0);
+	VictorSPX intakeMotor2 = new VictorSPX(1);
 	double encRevsElevator; // encoder for elevator
 
 	// Hanger
@@ -83,6 +80,9 @@ public class Robot extends IterativeRobot {
 	double distPlatToScale;
 	double releaseCube;
 	int stepNumber;
+
+	// Extra Talon 7
+	WPI_TalonSRX extraTalon = new WPI_TalonSRX(7);
 
 	@Override
 	public void robotInit() {
