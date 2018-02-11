@@ -18,11 +18,8 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.SerialPort;
-import edu.wpi.first.wpilibj.SpeedControllerGroup;
-import edu.wpi.first.wpilibj.Talon;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
@@ -48,9 +45,12 @@ public class Robot extends IterativeRobot {
 	Joystick xbox = new Joystick(1);
 
 	// Elevator
-	WPI_TalonSRX elevatorExtension = new WPI_TalonSRX(6); // Talon number needs to be changed
-	VictorSPX intakeMotor1 = new VictorSPX(0); // Talon number needs to be changed
-	VictorSPX intakeMotor2 = new VictorSPX(1); // Talon number needs to be changed
+	WPI_TalonSRX elevatorExtension = new WPI_TalonSRX(6); // Talon number needs
+															// to be changed
+	VictorSPX intakeMotor1 = new VictorSPX(0); // Talon number needs to be
+												// changed
+	VictorSPX intakeMotor2 = new VictorSPX(1); // Talon number needs to be
+												// changed
 	double encRevsElevator; // encoder for elevator
 
 	// Hanger
@@ -65,9 +65,11 @@ public class Robot extends IterativeRobot {
 	DigitalInput autonSwitchBlue = new DigitalInput(2);
 	DigitalInput autonSwitchRed = new DigitalInput(4);
 	DigitalInput autonSwitchGreen = new DigitalInput(5);
+	DigitalInput autonSwitchYellow = new DigitalInput(6);
 	int switchGreenFinal;
 	int switchBlueFinal;
 	int switchRedFinal;
+	int switchYellowFinal;
 	int switBinFin;
 
 	String gameData;
@@ -97,11 +99,14 @@ public class Robot extends IterativeRobot {
 		defaultSpeed = 0.6;
 		releaseCube = -0.6;
 		distScale = 324; // From drive station wall to scale's null territory
-		distPlatZone = 227; // From drive station wall to in between switch and platforms
-		distSwitch = 168; // From drive station wall to horizontal side of scale (side perpendicular to
+		distPlatZone = 227; // From drive station wall to in between switch and
+							// platforms
+		distSwitch = 168; // From drive station wall to horizontal side of scale
+							// (side perpendicular to
 							// drive station)
 		distCross = 200; // From one side of switch to other
-		distPlatToScale = 97; // To get from distPlatZone to scale's null territory
+		distPlatToScale = 97; // To get from distPlatZone to scale's null
+								// territory
 		stepNumber = 1;
 		navx.zeroYaw();
 	}
@@ -124,9 +129,12 @@ public class Robot extends IterativeRobot {
 		boolean switRawGreen = autonSwitchGreen.get();
 		boolean switRawBlue = autonSwitchBlue.get();
 		boolean switRawRed = autonSwitchRed.get();
+		boolean switRawYellow = autonSwitchYellow.get();
 		SmartDashboard.putBoolean("Green", switRawGreen);
 		SmartDashboard.putBoolean("Blue", switRawBlue);
 		SmartDashboard.putBoolean("Red", switRawRed);
+		SmartDashboard.putBoolean("Yellow", switRawYellow);
+
 		if (switRawGreen) {
 			switchGreenFinal = 1;
 		} else {
@@ -145,7 +153,13 @@ public class Robot extends IterativeRobot {
 			switchRedFinal = 0;
 		}
 
-		int switBinFin = (switchGreenFinal * 4) + (switchBlueFinal * 2) + switchRedFinal;
+		if (switRawYellow) {
+			switchYellowFinal = 1;
+		} else {
+			switchYellowFinal = 0;
+		}
+
+		int switBinFin = (switchYellowFinal * 8) + (switchGreenFinal * 4) + (switchBlueFinal * 2) + switchRedFinal;
 		SmartDashboard.putNumber("SwitBinFin", switBinFin);
 
 		switch (switBinFin) {
@@ -173,6 +187,9 @@ public class Robot extends IterativeRobot {
 		case 7:
 			CrossLine(); // all on
 			break;
+		case 8:
+			RightGen(); // yellow on
+			break;
 		}
 	}
 
@@ -180,17 +197,22 @@ public class Robot extends IterativeRobot {
 		myRobot.driveCartesian(0, 0, 0);
 	}
 
-	public void LeftScale() { // starting configuration left side touching driver wall
+	public void LeftScale() { // starting configuration left side touching
+								// driver wall
 		if (gameData.charAt(1) == 'R') { // going for right side of scale
 			if (stepNumber == 1) {
-				if (strafe_encRevsRF > -distPlatZone) { // strafe right to platform zone (between switch and scale)
+				if (strafe_encRevsRF > -distPlatZone) { // strafe right to
+														// platform zone
+														// (between switch and
+														// scale)
 					myRobot.driveCartesian(defaultSpeed, 0, 0);
 				} else if (strafe_encRevsRF <= -distPlatZone) {
 					stepNumber = 2;
 					leftFront.setSelectedSensorPosition(0, 0, 10);
 				}
 			} else if (stepNumber == 2) {
-				if (straight_encRevsLF > -distCross) { // cross field to other side of switch
+				if (straight_encRevsLF > -distCross) { // cross field to other
+														// side of switch
 					leftFront.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(0, -defaultSpeed, 0);
 				} else if (straight_encRevsLF <= -distCross) {
@@ -199,7 +221,8 @@ public class Robot extends IterativeRobot {
 					myRobot.driveCartesian(0, 0, 0);
 				}
 			} else if (stepNumber == 3) {
-				if (strafe_encRevsLB > -distPlatToScale) { // drive sideways to scale
+				if (strafe_encRevsLB > -distPlatToScale) { // drive sideways to
+															// scale
 					leftBack.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(defaultSpeed, 0, 0);
 					leftFront.setSelectedSensorPosition(0, 0, 10);
@@ -214,7 +237,11 @@ public class Robot extends IterativeRobot {
 			if (strafe_encRevsLF < distScale) { // strafe right until at scale
 				myRobot.driveCartesian(defaultSpeed, 0, 0);
 				navx.zeroYaw();
-			} else if (straight_encRevsLF >= distScale && Math.abs(navx.getAngle()) <= 130) { // turn 180 to face scale
+			} else if (straight_encRevsLF >= distScale && Math.abs(navx.getAngle()) <= 130) { // turn
+																								// 180
+																								// to
+																								// face
+																								// scale
 				rightFront.set(0.4);
 				rightBack.set(0.4);
 				leftFront.set(0.4);
@@ -227,14 +254,20 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
-	public void CenterSwitch() { // starting configuration back bumper touching wall and left bumper aligned with
+	public void CenterSwitch() { // starting configuration back bumper touching
+									// wall and left bumper aligned with
 									// exchange zone
 		if (gameData.charAt(0) == 'L') {
 			if (stepNumber == 1) {
-				if (straight_encRevsLB < 24) { // move forward past exchange zone ramp
+				if (straight_encRevsLB < 24) { // move forward past exchange
+												// zone ramp
 					myRobot.driveCartesian(0, defaultSpeed, 0);
 					leftFront.setSelectedSensorPosition(0, 0, 10);
-				} else if (straight_encRevsLB >= 24 && strafe_encRevsLF < 61) { // move sideways to switch plate
+				} else if (straight_encRevsLB >= 24 && strafe_encRevsLF < 61) { // move
+																				// sideways
+																				// to
+																				// switch
+																				// plate
 					leftFront.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(-defaultSpeed, 0, 0);
 					rightFront.setSelectedSensorPosition(0, 0, 10);
@@ -260,7 +293,9 @@ public class Robot extends IterativeRobot {
 			if (strafe_encRevsLF < 48) { // strafing right until past pyramid
 				myRobot.driveCartesian(defaultSpeed, 0, 0);
 				rightFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsLF >= 48 && straight_encRevsRF < 140) { // forward to switch
+			} else if (strafe_encRevsLF >= 48 && straight_encRevsRF < 140) { // forward
+																				// to
+																				// switch
 				rightFront.getSelectedSensorPosition(0);
 				myRobot.driveCartesian(0, defaultSpeed, 0);
 			} else if (straight_encRevsRF >= 140) { // place cube
@@ -280,7 +315,10 @@ public class Robot extends IterativeRobot {
 			if (straight_encRevsLF >= -distPlatZone) { // backwards past switch
 				myRobot.driveCartesian(0, -defaultSpeed, 0);
 				rightFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsRF < distCross && straight_encRevsLF < -distPlatZone) { // across to scale platform
+			} else if (strafe_encRevsRF < distCross && straight_encRevsLF < -distPlatZone) { // across
+																								// to
+																								// scale
+																								// platform
 				rightFront.getSelectedSensorPosition(0);
 				myRobot.driveCartesian(-defaultSpeed, 0, 0);
 			} else if (strafe_encRevsRF >= distCross) { // place cube
@@ -293,7 +331,10 @@ public class Robot extends IterativeRobot {
 			if (straight_encRevsLF >= -distSwitch) { // back up to switch
 				myRobot.driveCartesian(0, -defaultSpeed, 0);
 				navx.zeroYaw();
-			} else if (navx.getAngle() > -62 && straight_encRevsLF < -distSwitch) { // turn 90 degrees left
+			} else if (navx.getAngle() > -62 && straight_encRevsLF < -distSwitch) { // turn
+																					// 90
+																					// degrees
+																					// left
 				leftFront.set(-0.4);
 				rightFront.set(-0.4);
 				leftBack.set(-0.4);
@@ -315,7 +356,9 @@ public class Robot extends IterativeRobot {
 
 			if (strafe_encRevsLB < distScale) { // strafe left to scale
 				myRobot.driveCartesian(-defaultSpeed, 0, 0);
-			} else if (strafe_encRevsLB >= distScale && Math.abs(navx.getAngle()) <= 162) { // 180 degree turn
+			} else if (strafe_encRevsLB >= distScale && Math.abs(navx.getAngle()) <= 162) { // 180
+																							// degree
+																							// turn
 				rightFront.set(0.4);
 				rightBack.set(0.4);
 				leftFront.set(0.4);
@@ -329,10 +372,13 @@ public class Robot extends IterativeRobot {
 
 		} else if (gameData.charAt(1) == 'L') {
 			if (stepNumber == 1) {
-				if (strafe_encRevsLF > -distPlatZone) { // strafe left past switch
+				if (strafe_encRevsLF > -distPlatZone) { // strafe left past
+														// switch
 					myRobot.driveCartesian(-defaultSpeed, 0, 0);
 					rightFront.setSelectedSensorPosition(0, 0, 10);
-				} else if (strafe_encRevsLF <= -distPlatZone && straight_encRevsRF > -distCross) { // backwards next to
+				} else if (strafe_encRevsLF <= -distPlatZone && straight_encRevsRF > -distCross) { // backwards
+																									// next
+																									// to
 																									// scale
 					rightFront.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(0, -defaultSpeed, 0);
@@ -341,8 +387,13 @@ public class Robot extends IterativeRobot {
 					stepNumber = 2;
 				}
 			} else if (stepNumber == 2) {
-				if (straight_encRevsRF <= -distCross && strafe_encRevsLB < distPlatToScale) { // strafe left to line up
-																								// with scale
+				if (straight_encRevsRF <= -distCross && strafe_encRevsLB < distPlatToScale) { // strafe
+																								// left
+																								// to
+																								// line
+																								// up
+																								// with
+																								// scale
 					leftBack.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(-defaultSpeed, 0, 0);
 				} else if (strafe_encRevsLB >= distPlatToScale) { // place cube
@@ -363,7 +414,8 @@ public class Robot extends IterativeRobot {
 			} else if (strafe_encRevsRF <= 156 && straight_encRevsLF < -distPlatZone) {
 				rightFront.getSelectedSensorPosition(0);
 				myRobot.driveCartesian(defaultSpeed, 0, 0);
-			} else if (strafe_encRevsRF > 156 && straight_encRevsLF < -distPlatZone) { // place cube
+			} else if (strafe_encRevsRF > 156 && straight_encRevsLF < -distPlatZone) { // place
+																						// cube
 				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
 				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 			} else {
@@ -393,15 +445,31 @@ public class Robot extends IterativeRobot {
 			} else if (straight_encRevsLF <= 12 && strafe_encRevsRF > distSwitch) {
 				leftFront.getSelectedSensorPosition(0);
 				myRobot.driveCartesian(0, defaultSpeed, 0);
-			} else if (straight_encRevsLF > 12 && strafe_encRevsRF > distSwitch) { // place cube
+			} else if (straight_encRevsLF > 12 && strafe_encRevsRF > distSwitch) { // place
+																					// cube
 				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
 				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
-		} else if (gameData.charAt(0) != 'L' && gameData.charAt(1) == 'L') { // if going to left side of scale (from
-																				// left position) starting with right
-																				// side of robot against DS
+		} else if (gameData.charAt(0) != 'L' && gameData.charAt(1) == 'L') { // if
+																				// going
+																				// to
+																				// left
+																				// side
+																				// of
+																				// scale
+																				// (from
+																				// left
+																				// position)
+																				// starting
+																				// with
+																				// right
+																				// side
+																				// of
+																				// robot
+																				// against
+																				// DS
 			if (strafe_encRevsRF <= distScale) {
 				myRobot.driveCartesian(-defaultSpeed, 0, 0);
 			} else if (strafe_encRevsRF > distScale) { // place cube
@@ -410,8 +478,17 @@ public class Robot extends IterativeRobot {
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
-		} else if (gameData.charAt(0) == 'L' && gameData.charAt(1) == 'L') { // if going to left switch starting with
-																				// right side on DS
+		} else if (gameData.charAt(0) == 'L' && gameData.charAt(1) == 'L') { // if
+																				// going
+																				// to
+																				// left
+																				// switch
+																				// starting
+																				// with
+																				// right
+																				// side
+																				// on
+																				// DS
 			if (strafe_encRevsRF <= distSwitch) {
 				myRobot.driveCartesian(-defaultSpeed, 0, 0);
 				straight_encRevsLF = 0;
@@ -442,7 +519,75 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
+	public void RightGen() { // starting configuration is left bumper on wall
+		if (gameData.charAt(0) != 'R' && gameData.charAt(1) == 'R') { // if
+																		// scale
+																		// is
+																		// right
+			if (strafe_encRevsRF > distScale) { // strafe to scale
+				myRobot.driveCartesian(defaultSpeed, 0, 0);
+			} else if (strafe_encRevsRF >= distScale) { // place cube
+				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
+				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+			} else { // do nothing
+				myRobot.driveCartesian(0, 0, 0);
+			}
+		} else if (gameData.charAt(0) == 'R' && gameData.charAt(1) != 'R') {// if
+																			// switch
+																			// is
+																			// right
+			if (strafe_encRevsRF < distSwitch) { // strafe until at switch
+				myRobot.driveCartesian(defaultSpeed, 0, 0);
+				leftFront.setSelectedSensorPosition(0, 0, 10);
+			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF < 12) { // move
+																					// forward
+																					// to
+																					// switch
+				leftFront.getSelectedSensorPosition(0);
+				myRobot.driveCartesian(0, defaultSpeed, 0);
+			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF >= 12) { // place
+																						// cube
+				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
+				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+			} else { // do nothing
+				myRobot.driveCartesian(0, 0, 0);
+			}
+		} else if (gameData.charAt(0) == 'R' && gameData.charAt(1) == 'R') { // if
+																				// both
+																				// are
+																				// right
+			if (strafe_encRevsRF < distSwitch) { // strafe until at switch
+				myRobot.driveCartesian(defaultSpeed, 0, 0);
+				leftFront.setSelectedSensorPosition(0, 0, 10);
+			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF < 12) { // move
+																					// forward
+																					// to
+																					// switch
+				leftFront.getSelectedSensorPosition(0);
+				myRobot.driveCartesian(0, defaultSpeed, 0);
+			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF >= 12) { // place
+																						// cube
+				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
+				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+			} else { // do nothing
+				myRobot.driveCartesian(0, 0, 0);
+			}
+		} else if (gameData.charAt(0) != 'R' && gameData.charAt(1) != 'R') { // if
+																				// neither
+																				// are
+																				// right
+			if (strafe_encRevsRF <= 140) {
+				myRobot.driveCartesian(defaultSpeed, 0, 0);
+			} else {
+				myRobot.driveCartesian(0, 0, 0);
+			}
+		} else { // do nothing
+			myRobot.driveCartesian(0, 0, 0);
+		}
+	}
+
 	// TeleOp
+	@Override
 	public void teleopInit() {
 
 	}
@@ -485,7 +630,6 @@ public class Robot extends IterativeRobot {
 			intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
 			intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 		}
-		
 
 		// Climbing
 		if (xbox.getRawAxis(1) < 0) {
@@ -507,32 +651,26 @@ public class Robot extends IterativeRobot {
 			elevatorExtension.set(0);
 		}
 
+		/*
+		 * // switch preset else if (xbox.getRawButton(2)) { // button 2 is the
+		 * B button if (encRevsElevator > switchHeight) {
+		 * elevatorExtension.set(-.3); } else if (encRevsElevator <=
+		 * switchHeight) { elevatorExtension.set(.3); } // mid-scale preset }
+		 * else if (xbox.getRawButton(3)) { // button 3 is X button if
+		 * (encRevsElevator > scaleMid) { elevatorExtension.set(-.3); } else if
+		 * (encRevsElevator <= scaleMid) { elevatorExtension.set(.3); }
+		 */
 
-		/*// switch preset
-		else if (xbox.getRawButton(2)) { // button 2 is the B button
-			if (encRevsElevator > switchHeight) {
-				elevatorExtension.set(-.3);
-			} else if (encRevsElevator <= switchHeight) {
-				elevatorExtension.set(.3);
-			}
-			// mid-scale preset
-		} else if (xbox.getRawButton(3)) { // button 3 is X button
-			if (encRevsElevator > scaleMid) {
-				elevatorExtension.set(-.3);
-			} else if (encRevsElevator <= scaleMid) {
-				elevatorExtension.set(.3);
-			} */
+		// SmartDashboard values
+		SmartDashboard.putNumber("Left Front Encoder", strafe_encRevsLF);
+		SmartDashboard.putNumber("Left Rear Encoder", strafe_encRevsLB);
+		SmartDashboard.putNumber("Right Front Encoder", strafe_encRevsRF);
+		SmartDashboard.putNumber("Right Rear Encoder", strafe_encRevsRB);
+		SmartDashboard.putNumber("Elevator Encoder", encRevsElevator);
 
-			// SmartDashboard values
-			SmartDashboard.putNumber("Left Front Encoder", strafe_encRevsLF);
-			SmartDashboard.putNumber("Left Rear Encoder", strafe_encRevsLB);
-			SmartDashboard.putNumber("Right Front Encoder", strafe_encRevsRF);
-			SmartDashboard.putNumber("Right Rear Encoder", strafe_encRevsRB);
-			SmartDashboard.putNumber("Elevator Encoder", encRevsElevator);
-
-			SmartDashboard.putNumber("Gyro Yaw", navx.getYaw());
-			SmartDashboard.putNumber("Gyro Angle", navx.getAngle());			
-		}
+		SmartDashboard.putNumber("Gyro Yaw", navx.getYaw());
+		SmartDashboard.putNumber("Gyro Angle", navx.getAngle());
+	}
 
 	@Override
 	public void testPeriodic() {
@@ -540,10 +678,10 @@ public class Robot extends IterativeRobot {
 		LiveWindow.addActuator("Drivetrain", "Right Back", rightBack);
 		LiveWindow.addActuator("Drivetrain", "Left Front", leftFront);
 		LiveWindow.addActuator("Drivetrain", "Left Back", leftBack);
-		
+
 		LiveWindow.addActuator("Hanger", "Hanging Motor 1", hangMotor1);
 		LiveWindow.addActuator("Hanger", "Hanging Motor 2", hangMotor2);
-		
+
 		LiveWindow.addActuator("Elevator", "Elevator", elevatorExtension);
 	}
 }
