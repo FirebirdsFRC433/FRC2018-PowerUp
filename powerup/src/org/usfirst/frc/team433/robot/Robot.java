@@ -26,10 +26,10 @@ public class Robot extends IterativeRobot {
 
 	// Drive train
 	MecanumDrive myRobot;
-	WPI_TalonSRX leftFront = new WPI_TalonSRX(2);
-	WPI_TalonSRX leftBack = new WPI_TalonSRX(3);
-	WPI_TalonSRX rightFront = new WPI_TalonSRX(4);
-	WPI_TalonSRX rightBack = new WPI_TalonSRX(5);
+	WPI_TalonSRX leftFront = new WPI_TalonSRX(5);
+	WPI_TalonSRX leftBack = new WPI_TalonSRX(4);
+	WPI_TalonSRX rightFront = new WPI_TalonSRX(3);
+	WPI_TalonSRX rightBack = new WPI_TalonSRX(2);
 
 	double straight_encRevsLF;
 	double straight_encRevsLB;
