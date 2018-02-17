@@ -8,6 +8,7 @@
 package org.usfirst.frc.team433.robot;
 
 import com.ctre.phoenix.motorcontrol.ControlMode;
+import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.kauailabs.navx.frc.AHRS;
@@ -45,7 +46,8 @@ public class Robot extends IterativeRobot {
 	Joystick xbox = new Joystick(1);
 
 	// Elevator
-	WPI_TalonSRX elevatorExtension = new WPI_TalonSRX(6);
+	WPI_TalonSRX elevatorExtension1 = new WPI_TalonSRX(6);
+	WPI_TalonSRX elevatorExtension2 = new WPI_TalonSRX(7);
 	VictorSPX intakeMotor1 = new VictorSPX(0);
 	VictorSPX intakeMotor2 = new VictorSPX(1);
 	double encRevsElevator; // encoder for elevator
@@ -62,11 +64,11 @@ public class Robot extends IterativeRobot {
 	DigitalInput autonSwitchBlue = new DigitalInput(2);
 	DigitalInput autonSwitchRed = new DigitalInput(4);
 	DigitalInput autonSwitchGreen = new DigitalInput(5);
-	DigitalInput autonSwitchYellow = new DigitalInput(6);
+	//DigitalInput autonSwitchYellow = new DigitalInput(6);
 	int switchGreenFinal;
 	int switchBlueFinal;
 	int switchRedFinal;
-	int switchYellowFinal;
+	//int switchYellowFinal;
 	int switBinFin;
 
 	String gameData;
@@ -81,9 +83,6 @@ public class Robot extends IterativeRobot {
 	double releaseCube;
 	int stepNumber;
 
-	// Extra Talon 7
-	WPI_TalonSRX extraTalon = new WPI_TalonSRX(7);
-
 	@Override
 	public void robotInit() {
 		myRobot = new MecanumDrive(leftFront, leftBack, rightFront, rightBack);
@@ -91,6 +90,22 @@ public class Robot extends IterativeRobot {
 
 		leftFront.setSensorPhase(true);
 		leftBack.setSensorPhase(true);
+		rightFront.setSensorPhase(true);
+		rightBack.setSensorPhase(true);
+		
+		
+		// setting up the elevator as a PID device
+		elevatorExtension2.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
+		elevatorExtension2.configNominalOutputReverse(0, 10);
+		elevatorExtension2.configNominalOutputForward(0, 10);
+		elevatorExtension2.setSensorPhase(true);
+		elevatorExtension2.selectProfileSlot(0, 0);
+		elevatorExtension2.config_kF(0, .85, 10);
+		elevatorExtension2.config_kP(0, .7, 10);
+		elevatorExtension2.config_kI(0, 0, 10); //.1
+		elevatorExtension2.config_kD(0, 0, 10); //.3
+		elevatorExtension2.configMotionCruiseVelocity(1800, 10);
+		elevatorExtension2.configMotionAcceleration(2600, 10);
 	}
 
 	@Override
@@ -115,10 +130,10 @@ public class Robot extends IterativeRobot {
 	public void autonomousPeriodic() {
 
 		// divided by 259 to convert encoder loops to inches
-		straight_encRevsLF = leftFront.getSelectedSensorPosition(0) / 259;
-		straight_encRevsLB = leftBack.getSelectedSensorPosition(0) / 259;
-		straight_encRevsRF = rightFront.getSelectedSensorPosition(0) / 259;
-		straight_encRevsRB = rightBack.getSelectedSensorPosition(0) / 259;
+		straight_encRevsLF = leftFront.getSelectedSensorPosition(0) / 223.86;
+		straight_encRevsLB = leftBack.getSelectedSensorPosition(0) / 229.34;
+		straight_encRevsRF = rightFront.getSelectedSensorPosition(0) / 226.54;
+		straight_encRevsRB = rightBack.getSelectedSensorPosition(0) / 218.83;
 
 		strafe_encRevsLF = leftFront.getSelectedSensorPosition(0);
 		strafe_encRevsLB = leftBack.getSelectedSensorPosition(0);
@@ -129,11 +144,11 @@ public class Robot extends IterativeRobot {
 		boolean switRawGreen = autonSwitchGreen.get();
 		boolean switRawBlue = autonSwitchBlue.get();
 		boolean switRawRed = autonSwitchRed.get();
-		boolean switRawYellow = autonSwitchYellow.get();
+		//boolean switRawYellow = autonSwitchYellow.get();
 		SmartDashboard.putBoolean("Green", switRawGreen);
 		SmartDashboard.putBoolean("Blue", switRawBlue);
 		SmartDashboard.putBoolean("Red", switRawRed);
-		SmartDashboard.putBoolean("Yellow", switRawYellow);
+		//SmartDashboard.putBoolean("Yellow", switRawYellow);
 
 		if (switRawGreen) {
 			switchGreenFinal = 1;
@@ -153,13 +168,13 @@ public class Robot extends IterativeRobot {
 			switchRedFinal = 0;
 		}
 
-		if (switRawYellow) {
+		/*if (switRawYellow) {
 			switchYellowFinal = 1;
 		} else {
 			switchYellowFinal = 0;
-		}
+		}*/
 
-		int switBinFin = (switchYellowFinal * 8) + (switchGreenFinal * 4) + (switchBlueFinal * 2) + switchRedFinal;
+		int switBinFin = /*(switchYellowFinal * 8) + */(switchGreenFinal * 4) + (switchBlueFinal * 2) + switchRedFinal;
 		SmartDashboard.putNumber("SwitBinFin", switBinFin);
 
 		switch (switBinFin) {
@@ -187,9 +202,9 @@ public class Robot extends IterativeRobot {
 		case 7:
 			CrossLine(); // all on
 			break;
-		case 8:
+		/*case 8:
 			RightGen(); // yellow on
-			break;
+			break;*/
 		}
 	}
 
@@ -589,18 +604,19 @@ public class Robot extends IterativeRobot {
 	// TeleOp
 	@Override
 	public void teleopInit() {
-
+		releaseCube = -.5;
+		defaultSpeed = .5;
 	}
 
 	@Override
 	public void teleopPeriodic() {
 
-		if (joystick.getRawAxis(0) < -.1 || joystick.getRawAxis(0) > .1) {
-			myRobot.driveCartesian(joystick.getRawAxis(0), joystick.getRawAxis(1), 0, 0);
-		} else if (joystick.getRawAxis(1) < -.1 || joystick.getRawAxis(1) > .1) {
-			myRobot.driveCartesian(joystick.getRawAxis(0), joystick.getRawAxis(1), 0, 0);
-		} else if (joystick.getRawAxis(2) < -.1 || joystick.getRawAxis(2) > .1) {
-			myRobot.driveCartesian(joystick.getRawAxis(0), joystick.getRawAxis(1), 0, 0);
+		if (joystick.getRawAxis(0) < .2 || joystick.getRawAxis(0) > .2) {
+			myRobot.driveCartesian(joystick.getRawAxis(0), -joystick.getRawAxis(1), joystick.getRawAxis(2), 0);
+		} else if (joystick.getRawAxis(1) < .2 || joystick.getRawAxis(1) > .2) {
+			myRobot.driveCartesian(joystick.getRawAxis(0), -joystick.getRawAxis(1), joystick.getRawAxis(2), 0);
+		} else if (joystick.getRawAxis(2) < .2 || joystick.getRawAxis(2) > .2) {
+			myRobot.driveCartesian(joystick.getRawAxis(0), -joystick.getRawAxis(1), joystick.getRawAxis(2), 0);
 		} else {
 			myRobot.driveCartesian(0, 0, 0, 0);
 		}
@@ -611,33 +627,39 @@ public class Robot extends IterativeRobot {
 			leftBack.setSelectedSensorPosition(0, 0, 10);
 			rightFront.setSelectedSensorPosition(0, 0, 10);
 			rightBack.setSelectedSensorPosition(0, 0, 10);
-			elevatorExtension.setSelectedSensorPosition(0, 0, 10);
+			elevatorExtension2.setSelectedSensorPosition(0, 0, 10);
 		} else {
 			strafe_encRevsLF = leftFront.getSelectedSensorPosition(0);
 			strafe_encRevsRF = rightFront.getSelectedSensorPosition(0);
 			strafe_encRevsLB = leftBack.getSelectedSensorPosition(0);
 			strafe_encRevsRB = rightBack.getSelectedSensorPosition(0);
-			encRevsElevator = elevatorExtension.getSelectedSensorPosition(0);
+			encRevsElevator = elevatorExtension2.getSelectedSensorPosition(0);
 		}
 
 		// cube intake
 		if (xbox.getRawAxis(3) > 0) {
-			intakeMotor1.set(ControlMode.PercentOutput, defaultSpeed);
-			intakeMotor2.set(ControlMode.PercentOutput, defaultSpeed);
+			intakeMotor1.set(ControlMode.PercentOutput, 0.6);
+			intakeMotor2.set(ControlMode.PercentOutput, -0.6);
 		}
 		// cube output
 		else if (xbox.getRawAxis(2) > 0) {
-			intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-			intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+			intakeMotor1.set(ControlMode.PercentOutput, -0.6);
+			intakeMotor2.set(ControlMode.PercentOutput, 0.6);
+		} else {
+			intakeMotor1.set(ControlMode.PercentOutput, 0);
+			intakeMotor2.set(ControlMode.PercentOutput, 0);
 		}
 
 		// Climbing
-		if (xbox.getRawAxis(1) < 0) {
-			// extend climb mechanism
-		}
-
 		if (xbox.getRawButton(4)) { // button 4 is the Y button
-			// clamp on climb bar
+			hangMotor1.set(ControlMode.PercentOutput, .4);
+			hangMotor2.set(ControlMode.PercentOutput, .4);
+		} else if (xbox.getRawButton(3)) {
+			hangMotor1.set(ControlMode.PercentOutput, -.35);
+			hangMotor2.set(ControlMode.PercentOutput, -.35);
+		} else {
+			hangMotor1.set(ControlMode.PercentOutput, 0);
+			hangMotor2.set(ControlMode.PercentOutput, 0);
 		}
 
 		// Elevator
@@ -645,11 +667,13 @@ public class Robot extends IterativeRobot {
 		double scaleMid = 70;
 
 		// elevator extension
-		if (xbox.getRawAxis(5) != 0) {
-			elevatorExtension.set(xbox.getRawAxis(5));
+		/*if (xbox.getRawAxis(5) != 0) {
+			elevatorExtension1.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
+			elevatorExtension2.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
 		} else {
-			elevatorExtension.set(0);
-		}
+			elevatorExtension1.set(ControlMode.PercentOutput, 0);
+			elevatorExtension2.set(ControlMode.PercentOutput, 0);
+		}*/
 
 		/*
 		 * // switch preset else if (xbox.getRawButton(2)) { // button 2 is the
@@ -660,16 +684,51 @@ public class Robot extends IterativeRobot {
 		 * (encRevsElevator > scaleMid) { elevatorExtension.set(-.3); } else if
 		 * (encRevsElevator <= scaleMid) { elevatorExtension.set(.3); }
 		 */
-
+	
+		if (xbox.getRawButton(5)) {
+			elevatorExtension2.set(ControlMode.MotionMagic, -35000);
+			elevatorExtension1.set(ControlMode.Follower, 7);
+		} else {
+			if (xbox.getRawAxis(5) > .1 || xbox.getRawAxis(5) < -.1) {
+				elevatorExtension2.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
+				elevatorExtension1.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
+			} else {
+				elevatorExtension2.set(ControlMode.PercentOutput, 0);
+				elevatorExtension1.set(ControlMode.PercentOutput, 0);
+			}
+		}
+		
+		
 		// SmartDashboard values
+		
+		//encoder values
 		SmartDashboard.putNumber("Left Front Encoder", strafe_encRevsLF);
 		SmartDashboard.putNumber("Left Rear Encoder", strafe_encRevsLB);
 		SmartDashboard.putNumber("Right Front Encoder", strafe_encRevsRF);
 		SmartDashboard.putNumber("Right Rear Encoder", strafe_encRevsRB);
 		SmartDashboard.putNumber("Elevator Encoder", encRevsElevator);
-
+		
+		//gyro values
 		SmartDashboard.putNumber("Gyro Yaw", navx.getYaw());
 		SmartDashboard.putNumber("Gyro Angle", navx.getAngle());
+		
+		//drivetrain voltage
+		double leftFrontVoltage = leftFront.getMotorOutputVoltage();
+		double leftBackVoltage = leftBack.getMotorOutputVoltage();
+		double rightFrontVoltage = rightFront.getMotorOutputVoltage();
+		double rightBackVoltage = rightBack.getMotorOutputVoltage();
+		SmartDashboard.putNumber("Left Front Voltage", leftFrontVoltage);
+		SmartDashboard.putNumber("Left Back Voltage", leftBackVoltage);
+		SmartDashboard.putNumber("Right Front Voltage", rightFrontVoltage);
+		SmartDashboard.putNumber("Right Back Voltage", rightBackVoltage);
+		
+		//elevator voltage outputs
+		double elevatorExt1Voltage = elevatorExtension1.getMotorOutputVoltage();
+		double elevatorExt2Voltage = elevatorExtension2.getMotorOutputVoltage();
+		
+		SmartDashboard.putNumber("Elevator Velocity", elevatorExtension2.getSelectedSensorVelocity(0));
+		SmartDashboard.putNumber("Elevator 1 Voltage", elevatorExt1Voltage);
+		SmartDashboard.putNumber("Elevator 2 Voltage", elevatorExt2Voltage);
 	}
 
 	@Override
@@ -682,6 +741,7 @@ public class Robot extends IterativeRobot {
 		LiveWindow.addActuator("Hanger", "Hanging Motor 1", hangMotor1);
 		LiveWindow.addActuator("Hanger", "Hanging Motor 2", hangMotor2);
 
-		LiveWindow.addActuator("Elevator", "Elevator", elevatorExtension);
+		LiveWindow.addActuator("Elevator", "Elevator Motor 1", elevatorExtension1);
+		LiveWindow.addActuator("Elevator", "Elevator Motor 2", elevatorExtension2);
 	}
 }
