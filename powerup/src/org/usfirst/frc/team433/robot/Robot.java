@@ -14,11 +14,13 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 import com.kauailabs.navx.frc.AHRS;
 
 import edu.wpi.first.wpilibj.AnalogInput;
+import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.SerialPort;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -33,12 +35,12 @@ public class Robot extends IterativeRobot {
 	WPI_TalonSRX rightBack = new WPI_TalonSRX(2);
 
 	double straight_encRevsLF;
-	double straight_encRevsLB;
+	// double straight_encRevsLB;
 	double straight_encRevsRF;
 	double straight_encRevsRB;
 
 	double strafe_encRevsLF;
-	double strafe_encRevsLB;
+	// double strafe_encRevsLB;
 	double strafe_encRevsRF;
 	double strafe_encRevsRB;
 
@@ -48,9 +50,13 @@ public class Robot extends IterativeRobot {
 	// Elevator
 	WPI_TalonSRX elevatorExtension1 = new WPI_TalonSRX(6);
 	WPI_TalonSRX elevatorExtension2 = new WPI_TalonSRX(7);
+	double encRevsElevator; // encoder for elevator
+	DigitalInput elevSwitchHi = new DigitalInput(0);
+	DigitalInput elevSwitchLo = new DigitalInput(1);
+
+	// cube intake & output
 	VictorSPX intakeMotor1 = new VictorSPX(0);
 	VictorSPX intakeMotor2 = new VictorSPX(1);
-	double encRevsElevator; // encoder for elevator
 
 	// Hanger
 	WPI_TalonSRX hangMotor1 = new WPI_TalonSRX(8);
@@ -64,11 +70,11 @@ public class Robot extends IterativeRobot {
 	DigitalInput autonSwitchBlue = new DigitalInput(2);
 	DigitalInput autonSwitchRed = new DigitalInput(4);
 	DigitalInput autonSwitchGreen = new DigitalInput(5);
-	//DigitalInput autonSwitchYellow = new DigitalInput(6);
+	DigitalInput autonSwitchYellow = new DigitalInput(6);
 	int switchGreenFinal;
 	int switchBlueFinal;
 	int switchRedFinal;
-	//int switchYellowFinal;
+	int switchYellowFinal;
 	int switBinFin;
 
 	String gameData;
@@ -82,6 +88,10 @@ public class Robot extends IterativeRobot {
 	double distPlatToScale;
 	double releaseCube;
 	int stepNumber;
+	double timerDelay;
+	int whereIsIt;
+
+	CameraServer server;
 
 	@Override
 	public void robotInit() {
@@ -92,31 +102,37 @@ public class Robot extends IterativeRobot {
 		leftBack.setSensorPhase(true);
 		rightFront.setSensorPhase(true);
 		rightBack.setSensorPhase(true);
-		
-		
+
+		leftFront.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
+		leftBack.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
+		rightFront.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
+		rightBack.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
+
 		// setting up the elevator as a PID device
-		elevatorExtension2.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
-		elevatorExtension2.configNominalOutputReverse(0, 10);
-		elevatorExtension2.configNominalOutputForward(0, 10);
-		elevatorExtension2.setSensorPhase(true);
-		elevatorExtension2.selectProfileSlot(0, 0);
-		elevatorExtension2.config_kF(0, .85, 10);
-		elevatorExtension2.config_kP(0, .7, 10);
-		elevatorExtension2.config_kI(0, 0, 10); //.1
-		elevatorExtension2.config_kD(0, 0, 10); //.3
-		elevatorExtension2.configMotionCruiseVelocity(1800, 10);
-		elevatorExtension2.configMotionAcceleration(2600, 10);
+		elevatorExtension1.configSelectedFeedbackSensor(FeedbackDevice.CTRE_MagEncoder_Relative, 0, 10);
+		elevatorExtension1.configNominalOutputReverse(-.8, 10);
+		elevatorExtension1.configNominalOutputForward(.8, 10);
+		elevatorExtension1.setSensorPhase(true);
+		elevatorExtension1.selectProfileSlot(0, 0);
+		elevatorExtension1.config_kF(0, .85, 10);
+		elevatorExtension1.config_kP(0, .7, 10);
+		elevatorExtension1.config_kI(0, 0, 10); // .1
+		elevatorExtension1.config_kD(0, 0, 10); // .3
+		elevatorExtension1.configMotionCruiseVelocity(2000, 10);
+		elevatorExtension1.configMotionAcceleration(4400, 10);
+
+		elevatorExtension2.set(ControlMode.Follower, elevatorExtension1.getDeviceID());
 	}
 
 	@Override
 	public void autonomousInit() {
 		gameData = DriverStation.getInstance().getGameSpecificMessage();
-		defaultSpeed = 0.6;
+		defaultSpeed = 0.5;
 		releaseCube = -0.6;
-		distScale = 324; // From drive station wall to scale's null territory
+		distScale = 285; // From drive station wall to scale's null territory
 		distPlatZone = 227; // From drive station wall to in between switch and
 							// platforms
-		distSwitch = 168; // From drive station wall to horizontal side of scale
+		distSwitch = 130; // From drive station wall to horizontal side of scale
 							// (side perpendicular to
 							// drive station)
 		distCross = 200; // From one side of switch to other
@@ -124,31 +140,35 @@ public class Robot extends IterativeRobot {
 								// territory
 		stepNumber = 1;
 		navx.zeroYaw();
+
+		timerDelay = .1;
 	}
 
 	@Override
 	public void autonomousPeriodic() {
 
 		// divided by 259 to convert encoder loops to inches
-		straight_encRevsLF = leftFront.getSelectedSensorPosition(0) / 223.86;
-		straight_encRevsLB = leftBack.getSelectedSensorPosition(0) / 229.34;
-		straight_encRevsRF = rightFront.getSelectedSensorPosition(0) / 226.54;
-		straight_encRevsRB = rightBack.getSelectedSensorPosition(0) / 218.83;
+		straight_encRevsLF = leftFront.getSelectedSensorPosition(0) / 209.55;
+		// straight_encRevsLB = leftBack.getSelectedSensorPosition(0) / 229.34;
+		straight_encRevsRF = -rightFront.getSelectedSensorPosition(0) / 207.94;
+		straight_encRevsRB = -rightBack.getSelectedSensorPosition(0) / 205.51;
 
-		strafe_encRevsLF = leftFront.getSelectedSensorPosition(0);
-		strafe_encRevsLB = leftBack.getSelectedSensorPosition(0);
-		strafe_encRevsRF = rightFront.getSelectedSensorPosition(0);
-		strafe_encRevsRB = rightBack.getSelectedSensorPosition(0);
+		strafe_encRevsLF = leftFront.getSelectedSensorPosition(0) / 129.77;
+		// strafe_encRevsLB = leftBack.getSelectedSensorPosition(0);
+		strafe_encRevsRF = -rightFront.getSelectedSensorPosition(0) / 119.51;
+		strafe_encRevsRB = -rightBack.getSelectedSensorPosition(0) / 139.13;
+
+		encRevsElevator = elevatorExtension1.getSelectedSensorPosition(0);
 
 		// switch code
 		boolean switRawGreen = autonSwitchGreen.get();
 		boolean switRawBlue = autonSwitchBlue.get();
 		boolean switRawRed = autonSwitchRed.get();
-		//boolean switRawYellow = autonSwitchYellow.get();
+		boolean switRawYellow = autonSwitchYellow.get();
 		SmartDashboard.putBoolean("Green", switRawGreen);
 		SmartDashboard.putBoolean("Blue", switRawBlue);
 		SmartDashboard.putBoolean("Red", switRawRed);
-		//SmartDashboard.putBoolean("Yellow", switRawYellow);
+		SmartDashboard.putBoolean("Yellow", switRawYellow);
 
 		if (switRawGreen) {
 			switchGreenFinal = 1;
@@ -167,14 +187,13 @@ public class Robot extends IterativeRobot {
 		} else {
 			switchRedFinal = 0;
 		}
-
-		/*if (switRawYellow) {
+		if (switRawYellow) {
 			switchYellowFinal = 1;
 		} else {
 			switchYellowFinal = 0;
-		}*/
+		}
 
-		int switBinFin = /*(switchYellowFinal * 8) + */(switchGreenFinal * 4) + (switchBlueFinal * 2) + switchRedFinal;
+		int switBinFin = (switchYellowFinal * 8) + (switchGreenFinal * 4) + (switchBlueFinal * 2) + switchRedFinal;
 		SmartDashboard.putNumber("SwitBinFin", switBinFin);
 
 		switch (switBinFin) {
@@ -202,9 +221,8 @@ public class Robot extends IterativeRobot {
 		case 7:
 			CrossLine(); // all on
 			break;
-		/*case 8:
-			RightGen(); // yellow on
-			break;*/
+		case 8:
+			RightGen(); // yellow on break;
 		}
 	}
 
@@ -216,12 +234,12 @@ public class Robot extends IterativeRobot {
 								// driver wall
 		if (gameData.charAt(1) == 'R') { // going for right side of scale
 			if (stepNumber == 1) {
-				if (strafe_encRevsRF > -distPlatZone) { // strafe right to
-														// platform zone
-														// (between switch and
-														// scale)
+				if (straight_encRevsRF > -distPlatZone) { // straight right to
+															// platform zone
+															// (between switch and
+															// scale)
 					myRobot.driveCartesian(defaultSpeed, 0, 0);
-				} else if (strafe_encRevsRF <= -distPlatZone) {
+				} else if (straight_encRevsRF <= -distPlatZone) {
 					stepNumber = 2;
 					leftFront.setSelectedSensorPosition(0, 0, 10);
 				}
@@ -232,96 +250,227 @@ public class Robot extends IterativeRobot {
 					myRobot.driveCartesian(0, -defaultSpeed, 0);
 				} else if (straight_encRevsLF <= -distCross) {
 					stepNumber = 3;
-					leftBack.setSelectedSensorPosition(0, 0, 10);
+					rightBack.setSelectedSensorPosition(0, 0, 10);
 					myRobot.driveCartesian(0, 0, 0);
 				}
 			} else if (stepNumber == 3) {
-				if (strafe_encRevsLB > -distPlatToScale) { // drive sideways to
+				if (straight_encRevsRF < distPlatToScale) { // drive to
 															// scale
-					leftBack.getSelectedSensorPosition(0);
+					rightBack.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(defaultSpeed, 0, 0);
-					leftFront.setSelectedSensorPosition(0, 0, 10);
-				} else if (straight_encRevsLB <= -distPlatToScale) {
-					leftFront.getSelectedSensorPosition(0);
+				} else if (straight_encRevsRB >= distPlatToScale) {
 					myRobot.driveCartesian(0, 0, 0);
 				} else {
 					myRobot.driveCartesian(0, 0, 0);
 				}
 			}
 		} else if (gameData.charAt(1) == 'L') {
-			if (strafe_encRevsLF < distScale) { // strafe right until at scale
-				myRobot.driveCartesian(defaultSpeed, 0, 0);
-				navx.zeroYaw();
-			} else if (straight_encRevsLF >= distScale && Math.abs(navx.getAngle()) <= 130) { // turn
-																								// 180
-																								// to
-																								// face
-																								// scale
-				rightFront.set(0.4);
-				rightBack.set(0.4);
-				leftFront.set(0.4);
-				leftBack.set(0.4);
-			} else if (Math.abs(navx.getAngle()) >= 130) { // place cube
-				myRobot.driveCartesian(0, 0, 0);
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to scale
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distScale) { // continue going straight to scale
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+				} else if (straight_encRevsRF > distScale) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF < 45) { // turn towards scale
+					myRobot.driveCartesian(0, 0, .4);
+				} else if (straight_encRevsLF >= 45) {
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+					stepNumber = 4;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 4) { // back away from scale
+				/*
+				 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+				 * elevatorExtension1.set(ControlMode.MotionMagic, 60000);
+				 */
+
+			}
+			if (straight_encRevsRB > -15) {
+				rightBack.getSelectedSensorPosition(0);
+				myRobot.driveCartesian(0, -defaultSpeed, 0);
+			} else if (Math.abs(encRevsElevator) > 59000) {
+				stepNumber = 5;
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
+			/*
+			 * } else if (stepNumber == 5) { intakeMotor1.set(ControlMode.PercentOutput,
+			 * -releaseCube); intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+			 */
+
+		} else {
+			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
 	public void CenterSwitch() { // starting configuration back bumper touching
 									// wall and left bumper aligned with
 									// exchange zone
-		if (gameData.charAt(0) == 'L') {
+		if (gameData.charAt(0) == 'L') { // jerk code
+			SmartDashboard.putNumber("Step Number", stepNumber);
 			if (stepNumber == 1) {
-				if (straight_encRevsLB < 24) { // move forward past exchange
-												// zone ramp
-					myRobot.driveCartesian(0, defaultSpeed, 0);
-					leftFront.setSelectedSensorPosition(0, 0, 10);
-				} else if (straight_encRevsLB >= 24 && strafe_encRevsLF < 61) { // move
-																				// sideways
-																				// to
-																				// switch
-																				// plate
-					leftFront.getSelectedSensorPosition(0);
-					myRobot.driveCartesian(-defaultSpeed, 0, 0);
-					rightFront.setSelectedSensorPosition(0, 0, 10);
-				} else if (strafe_encRevsLF >= 61 && straight_encRevsRF < 116) {
+				if (straight_encRevsRB < 10) {
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRB >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(.3);
 					stepNumber = 2;
+				} else {
+				}
+			}
+			if (stepNumber == 2) {
+				if (straight_encRevsRB < 24) { // move forward past exchange zone ramp
+					myRobot.driveCartesian(0, .5, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRB >= 24) {
+					leftFront.getSelectedSensorPosition(0);
+					stepNumber = 3;
 				} else {
 					myRobot.driveCartesian(0, 0, 0);
 				}
-			} else if (stepNumber == 2) {
-				if (straight_encRevsRF < 116) { // move forward to switch
+			} else if (stepNumber == 3) {
+				if (strafe_encRevsLF > -105) {
+					myRobot.driveCartesian(-.4, 0, -.03);
+					rightFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (strafe_encRevsLF <= -105 && straight_encRevsRF < 63) {
+					stepNumber = 4;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 4) {
+				if (straight_encRevsRF < 63) { // move forward to switch
 					rightFront.getSelectedSensorPosition(0);
-					myRobot.driveCartesian(0, defaultSpeed, 0);
-				} else if (straight_encRevsRF >= 116) { // place cube
-					intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
+					myRobot.driveCartesian(0, .4, 0);
+				} else if (straight_encRevsRF >= 63 && encRevsElevator > 27000) { // place cube
+					intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
 					intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 				} else {
 					myRobot.driveCartesian(0, 0, 0);
 				}
 			} else {
-				myRobot.driveCartesian(0, 0, 0);
 			}
-		} else if (gameData.charAt(0) == 'R') {
-			if (strafe_encRevsLF < 48) { // strafing right until past pyramid
-				myRobot.driveCartesian(defaultSpeed, 0, 0);
-				rightFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsLF >= 48 && straight_encRevsRF < 140) { // forward
-																				// to
-																				// switch
-				rightFront.getSelectedSensorPosition(0);
-				myRobot.driveCartesian(0, defaultSpeed, 0);
-			} else if (straight_encRevsRF >= 140) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, defaultSpeed);
+			elevatorExtension1.set(ControlMode.MotionMagic, 28000); // extend elevator
+		}
+
+		else if (gameData.charAt(0) == 'R') {
+
+			SmartDashboard.putNumber("Left Front Strafe Auton", strafe_encRevsLF);
+			SmartDashboard.putNumber("Step Number Auton", stepNumber);
+			SmartDashboard.putNumber("Left Front Encoder Auton", straight_encRevsLF);
+			SmartDashboard.putNumber("Right Front Encoder Auton", straight_encRevsRF);
+			SmartDashboard.putNumber("Right Back Encoder Auton", straight_encRevsRB);
+			SmartDashboard.putNumber("Elevator Encoder Auton", encRevsElevator);
+			SmartDashboard.putNumber("Where is it now?", whereIsIt);
+
+			// UNTESTED - TWO CUBE
+			/*if (stepNumber < 150) { // first cube
+				if (strafe_encRevsLF < 105) { // move until past pyramid
+					myRobot.driveCartesian(defaultSpeed, 0, .03);
+					rightFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (strafe_encRevsLF >= 105 && straight_encRevsRF < 110) { // forward to switch
+					rightFront.getSelectedSensorPosition(0);
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+				} else if (straight_encRevsRF >= 110 && encRevsElevator > 27000) { // place cube
+					intakeMotor1.set(ControlMode.PercentOutput, -defaultSpeed);
+					intakeMotor2.set(ControlMode.PercentOutput, defaultSpeed);
+					stepNumber++;
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+				elevatorExtension1.set(ControlMode.MotionMagic, 28000);
+			} else if (stepNumber >= 150) { // second cube
+				if (straight_encRevsRB > -20) { // turn towards pyramid
+					myRobot.driveCartesian(0, 0, -.4);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+					rightFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRB <= -20 && encRevsElevator < 200) {// Move on to next step once turn is
+																				// done and elevator has moved down
+																				// enough
+					stepNumber = 151;
+					leftFront.getSelectedSensorPosition(0);
+					rightFront.getSelectedSensorPosition(0);
+				}
+				elevatorExtension1.set(ControlMode.MotionMagic, 100);
+			} else if (stepNumber >= 151 && stepNumber < 200) {
+				if (straight_encRevsLF < 30) { // move towards pyramid
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					intakeMotor1.set(ControlMode.PercentOutput, defaultSpeed);
+					intakeMotor2.set(ControlMode.PercentOutput, -defaultSpeed);
+				} else if (straight_encRevsLF >= 30) { // once at pyramid, keep intake going to pick up cube
+					intakeMotor1.set(ControlMode.PercentOutput, defaultSpeed);
+					intakeMotor2.set(ControlMode.PercentOutput, -defaultSpeed);
+					stepNumber++;
+				}
+			} else if (stepNumber == 200) {
+				if (straight_encRevsRF > 20) {// moving backwards with cube
+					myRobot.driveCartesian(0, -defaultSpeed, 0);
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF < 2) { // once moved back enough, go to next step
+					stepNumber = 201;
+					rightBack.getSelectedSensorPosition(0);
+				}
+			} else if (stepNumber == 201) {
+				elevatorExtension1.set(ControlMode.MotionMagic, 28000); // raising the elevator with cube, parallel to
+																		// switch
+				if (encRevsElevator > 27000) { // once elevator has gotten high enough, move on to next step
+					stepNumber = 202;
+				} else {
+				}
+			} else if (stepNumber == 202) {
+				if (straight_encRevsRB < 20) { // turn right towards switch
+					myRobot.driveCartesian(0, 0, -.4);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+					rightFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRB >= 20) {// once done turning, go to next step
+					stepNumber = 203;
+					leftFront.getSelectedSensorPosition(0);
+					rightFront.getSelectedSensorPosition(0);
+				}
+			} else if (stepNumber == 203) { // now facing switch. Release cube
+				intakeMotor1.set(ControlMode.PercentOutput, -defaultSpeed);
 				intakeMotor2.set(ControlMode.PercentOutput, defaultSpeed);
 			} else {
+			} */
+
+			// TESTED AND WORKS - ONE CUBE
+
+			if (strafe_encRevsLF < 115) { // move until past pyramid
+				myRobot.driveCartesian(defaultSpeed, 0, .03);
+				rightFront.setSelectedSensorPosition(0, 0, 10);
+				whereIsIt = 1;
+			} else if (strafe_encRevsLF >= 115 && straight_encRevsRF < 110) { // forward to switch
+				rightFront.getSelectedSensorPosition(0);
+				myRobot.driveCartesian(0, defaultSpeed, 0);
+				whereIsIt = 2;
+			} else if (straight_encRevsRF >= 110 && encRevsElevator > 27000) { // place cube
+				intakeMotor1.set(ControlMode.PercentOutput, defaultSpeed);
+				intakeMotor2.set(ControlMode.PercentOutput, defaultSpeed);
+				whereIsIt = 3;
+			} else {
 				myRobot.driveCartesian(0, 0, 0);
+				whereIsIt = 4;
 			}
+			elevatorExtension1.set(ControlMode.MotionMagic, 28000); 
+			
+
 
 		} else {
 			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
@@ -330,57 +479,110 @@ public class Robot extends IterativeRobot {
 			if (straight_encRevsLF >= -distPlatZone) { // backwards past switch
 				myRobot.driveCartesian(0, -defaultSpeed, 0);
 				rightFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsRF < distCross && straight_encRevsLF < -distPlatZone) { // across
+			} else if (straight_encRevsRF < distCross && straight_encRevsLF < -distPlatZone) { // across
 																								// to
 																								// scale
 																								// platform
 				rightFront.getSelectedSensorPosition(0);
 				myRobot.driveCartesian(-defaultSpeed, 0, 0);
-			} else if (strafe_encRevsRF >= distCross) { // place cube
+			} else if (straight_encRevsRF >= distCross) { // place cube
 				myRobot.driveCartesian(0, 0, 0);
 				stepNumber = 2;
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
-		} else if (gameData.charAt(0) == 'L') {
-			if (straight_encRevsLF >= -distSwitch) { // back up to switch
-				myRobot.driveCartesian(0, -defaultSpeed, 0);
-				navx.zeroYaw();
-			} else if (navx.getAngle() > -62 && straight_encRevsLF < -distSwitch) { // turn
-																					// 90
-																					// degrees
-																					// left
-				leftFront.set(-0.4);
-				rightFront.set(-0.4);
-				leftBack.set(-0.4);
-				rightBack.set(-0.4);
-			} else if (navx.getAngle() <= -62) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else {
-				myRobot.driveCartesian(0, 0, 0);
-			}
+			elevatorExtension1.set(ControlMode.MotionMagic, 28000);
+		}
 
+		else if (gameData.charAt(0) == 'L') {
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distSwitch) { // continue going straight to switch
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF > distSwitch) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF < 45) { // turn towards switch
+					myRobot.driveCartesian(0, 0, .4);
+				} else if (straight_encRevsLF >= 45) {
+					stepNumber = 4;
+				}
+			} else if (stepNumber == 4) {
+				myRobot.driveCartesian(0, 0, 0);
+				if (encRevsElevator > 27000) {
+					intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+					intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
+			/*
+			 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+			 * elevatorExtension1.set(ControlMode.MotionMagic, 28000); }
+			 */
 		} else {
 			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
-	public void RightScale() { // starting configuration is right side on wall
+	public void RightScale() { // starting configuration is back side on wall
 		if (gameData.charAt(1) == 'R') {
-
-			if (strafe_encRevsLB < distScale) { // strafe left to scale
-				myRobot.driveCartesian(-defaultSpeed, 0, 0);
-			} else if (strafe_encRevsLB >= distScale && Math.abs(navx.getAngle()) <= 162) { // 180
-																							// degree
-																							// turn
-				rightFront.set(0.4);
-				rightBack.set(0.4);
-				leftFront.set(0.4);
-				leftBack.set(0.4);
-			} else if (Math.abs(navx.getAngle()) > 162) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+			if (stepNumber == 1) { // jerk code
+				if (straight_encRevsRF < 10) { // go straight toward scale
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF < 285) { // continue going straight toward scale
+					myRobot.driveCartesian(0, defaultSpeed, -.01);
+				} else if (straight_encRevsRF >= 285) {
+					stepNumber = 3;
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) { // turn toward scale
+				SmartDashboard.putNumber("Right Rear Encoder", rightBack.getSelectedSensorPosition(0));
+				SmartDashboard.putNumber("Step Number", stepNumber);
+				if (Math.abs(straight_encRevsRB) < 45) {
+					myRobot.driveCartesian(0, 0, -defaultSpeed);
+				} else if (Math.abs(straight_encRevsRB) >= 45) {
+					myRobot.driveCartesian(0, 0, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+					stepNumber = 4;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 4) { // back away from scale
+				/*
+				 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+				 * elevatorExtension1.set(ControlMode.MotionMagic, 60000);
+				 */
+				if (straight_encRevsLF > -15) {
+					leftFront.getSelectedSensorPosition(0);
+					myRobot.driveCartesian(0, -defaultSpeed, 0);
+				} else if (Math.abs(encRevsElevator) > 59000) {
+					stepNumber = 5;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 5) {
+				// intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+				// intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
@@ -397,27 +599,30 @@ public class Robot extends IterativeRobot {
 																									// scale
 					rightFront.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(0, -defaultSpeed, 0);
-					leftBack.setSelectedSensorPosition(0, 0, 10);
-				} else if (straight_encRevsRF <= -distCross && strafe_encRevsLB < distPlatToScale) {
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF <= -distCross && strafe_encRevsRB > -distPlatToScale) {
 					stepNumber = 2;
 				}
 			} else if (stepNumber == 2) {
-				if (straight_encRevsRF <= -distCross && strafe_encRevsLB < distPlatToScale) { // strafe
+				if (straight_encRevsRF <= -distCross && strafe_encRevsRB > -distPlatToScale) { // strafe
 																								// left
 																								// to
 																								// line
 																								// up
 																								// with
 																								// scale
-					leftBack.getSelectedSensorPosition(0);
+					rightBack.getSelectedSensorPosition(0);
 					myRobot.driveCartesian(-defaultSpeed, 0, 0);
-				} else if (strafe_encRevsLB >= distPlatToScale) { // place cube
+				} else if (strafe_encRevsRB <= -distPlatToScale) { // place cube
 					intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
 					intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 				} else {
 					myRobot.driveCartesian(0, 0, 0);
 				}
 			}
+		} else {
+			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
@@ -426,103 +631,216 @@ public class Robot extends IterativeRobot {
 			if (straight_encRevsLF >= -distPlatZone) {
 				myRobot.driveCartesian(0, -defaultSpeed, 0);
 				rightFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsRF <= 156 && straight_encRevsLF < -distPlatZone) {
+			} else if (straight_encRevsRF <= 285 && straight_encRevsLF < -distPlatZone) {
 				rightFront.getSelectedSensorPosition(0);
 				myRobot.driveCartesian(defaultSpeed, 0, 0);
-			} else if (strafe_encRevsRF > 156 && straight_encRevsLF < -distPlatZone) { // place
-																						// cube
+			} else if (straight_encRevsRF > 285 && straight_encRevsLF < -distPlatZone) { // place
+																							// cube
 				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
 				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
-		} else if (gameData.charAt(0) == 'R') {
-			if (straight_encRevsLF >= -distSwitch) {
-				myRobot.driveCartesian(0, -defaultSpeed, 0);
-				navx.zeroYaw();
-			} else if (straight_encRevsLF < -distSwitch && navx.getYaw() <= 90) {
-				myRobot.driveCartesian(0, 0, defaultSpeed);
-			} else if (navx.getYaw() > 90) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else {
-				myRobot.driveCartesian(0, 0, 0);
-			}
+			elevatorExtension1.set(ControlMode.MotionMagic, 28000);
+		}
 
+		else if (gameData.charAt(0) == 'R') {
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(.1);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distSwitch) { // continue going straight to switch
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF > distSwitch) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF > -20) { // turn towards switch
+					myRobot.driveCartesian(0, 0, -.4);
+				} else if (straight_encRevsLF <= -20) {
+					stepNumber = 4;
+				}
+			} else if (stepNumber == 4) {
+				myRobot.driveCartesian(0, 0, 0);
+				if (encRevsElevator > 27000) {
+					// intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+					// intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
+			/*
+			 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+			 * elevatorExtension1.set(ControlMode.MotionMagic, 28000); }
+			 */
+
+		} else {
+			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
-	public void LeftGen() { // starting configuration is right side on wall...?
-		if (gameData.charAt(0) == 'L' && gameData.charAt(1) != 'L') {
-			if (strafe_encRevsRF <= distSwitch) {
-				myRobot.driveCartesian(-defaultSpeed, 0, 0);
-				leftFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (straight_encRevsLF <= 12 && strafe_encRevsRF > distSwitch) {
-				leftFront.getSelectedSensorPosition(0);
-				myRobot.driveCartesian(0, defaultSpeed, 0);
-			} else if (straight_encRevsLF > 12 && strafe_encRevsRF > distSwitch) { // place
-																					// cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else {
-				myRobot.driveCartesian(0, 0, 0);
-			}
-		} else if (gameData.charAt(0) != 'L' && gameData.charAt(1) == 'L') { // if
-																				// going
-																				// to
-																				// left
-																				// side
-																				// of
-																				// scale
-																				// (from
-																				// left
-																				// position)
-																				// starting
-																				// with
-																				// right
-																				// side
-																				// of
-																				// robot
-																				// against
-																				// DS
-			if (strafe_encRevsRF <= distScale) {
-				myRobot.driveCartesian(-defaultSpeed, 0, 0);
-			} else if (strafe_encRevsRF > distScale) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else {
-				myRobot.driveCartesian(0, 0, 0);
-			}
-		} else if (gameData.charAt(0) == 'L' && gameData.charAt(1) == 'L') { // if
-																				// going
-																				// to
-																				// left
-																				// switch
-																				// starting
-																				// with
-																				// right
-																				// side
-																				// on
-																				// DS
-			if (strafe_encRevsRF <= distSwitch) {
-				myRobot.driveCartesian(-defaultSpeed, 0, 0);
-				straight_encRevsLF = 0;
-			} else if (straight_encRevsLF <= 12) {
-				leftFront.getSelectedSensorPosition(0);
-				myRobot.driveCartesian(0, defaultSpeed, 0);
-			} else if (straight_encRevsLF > 12) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else {
-				myRobot.driveCartesian(0, 0, 0);
+	public void LeftGen() { // starting configuration: back bumper on wall
+		SmartDashboard.putNumber("Right Front Encoder", straight_encRevsRF);
+		SmartDashboard.putNumber("Right Back Encoder", straight_encRevsRB);
+		SmartDashboard.putNumber("Left Front Encoder", straight_encRevsLF);
+		SmartDashboard.putNumber("Step Number", stepNumber);
+		SmartDashboard.putNumber("Program", switBinFin);
 
+		if (gameData.charAt(0) == 'L' && gameData.charAt(1) != 'L') { // going for switch
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distSwitch) { // continue going straight to switch
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF > distSwitch) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF < 45) { // turn towards switch
+					myRobot.driveCartesian(0, 0, .4);
+				} else if (straight_encRevsLF >= 45) {
+					stepNumber = 4;
+				}
+			} else if (stepNumber == 4) {
+				myRobot.driveCartesian(0, 0, 0);
+				if (encRevsElevator > 27000) {
+					intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+					intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
 			}
-		} else if (gameData.charAt(0) != 'L' && gameData.charAt(1) != 'L') {
-			if (strafe_encRevsLF <= 140) {
-				myRobot.driveCartesian(0, defaultSpeed, 0);
+			/*
+			 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+			 * elevatorExtension1.set(ControlMode.MotionMagic, 28000); }
+			 */
+		}
+
+		else if (gameData.charAt(0) != 'L' && gameData.charAt(1) == 'L') { // going for scale
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to scale
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distScale) { // continue going straight to scale
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+				} else if (straight_encRevsRF > distScale) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF < 45) { // turn towards scale
+					myRobot.driveCartesian(0, 0, .4);
+				} else if (straight_encRevsLF >= 45) {
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+					stepNumber = 4;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 4) { // back away from scale
+				/*
+				 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+				 * elevatorExtension1.set(ControlMode.MotionMagic, 60000); }
+				 */
+				if (straight_encRevsRB > -15) {
+					rightBack.getSelectedSensorPosition(0);
+					myRobot.driveCartesian(0, -defaultSpeed, 0);
+				} else if (Math.abs(encRevsElevator) > 59000) {
+					stepNumber = 5;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+				/*
+				 * } else if (stepNumber == 5) { intakeMotor1.set(ControlMode.PercentOutput,
+				 * -releaseCube); intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				 */
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
+		}
+
+		else if (gameData.charAt(0) == 'L' && gameData.charAt(1) == 'L') { // going for switch
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distSwitch) { // continue going straight to switch
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF > distSwitch) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF < 45) { // turn towards switch
+					myRobot.driveCartesian(0, 0, .4);
+				} else if (straight_encRevsLF >= 45) {
+					stepNumber = 4;
+				}
+			} else if (stepNumber == 4) {
+				myRobot.driveCartesian(0, 0, 0);
+				if (encRevsElevator > 27000) {
+					intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+					intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
+			/*
+			 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+			 * elevatorExtension1.set(ControlMode.MotionMagic, 28000); }
+			 */
+		}
+
+		else if (gameData.charAt(0) != 'L' && gameData.charAt(1) != 'L') { // crossing autoline
+			if (stepNumber == 1) { // jerk code
+				if (straight_encRevsRB < 10) { // go straight toward autoline
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRB >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(.3);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsLF <= 140) { // continue going straight toward autoline
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
+		} else {
+			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
@@ -534,185 +852,276 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
-	public void RightGen() { // starting configuration is left bumper on wall
-		if (gameData.charAt(0) != 'R' && gameData.charAt(1) == 'R') { // if
-																		// scale
-																		// is
-																		// right
-			if (strafe_encRevsRF > distScale) { // strafe to scale
-				myRobot.driveCartesian(defaultSpeed, 0, 0);
-			} else if (strafe_encRevsRF >= distScale) { // place cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else { // do nothing
-				myRobot.driveCartesian(0, 0, 0);
-			}
-		} else if (gameData.charAt(0) == 'R' && gameData.charAt(1) != 'R') {// if
-																			// switch
-																			// is
-																			// right
-			if (strafe_encRevsRF < distSwitch) { // strafe until at switch
-				myRobot.driveCartesian(defaultSpeed, 0, 0);
-				leftFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF < 12) { // move
-																					// forward
-																					// to
-																					// switch
-				leftFront.getSelectedSensorPosition(0);
-				myRobot.driveCartesian(0, defaultSpeed, 0);
-			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF >= 12) { // place
-																						// cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else { // do nothing
-				myRobot.driveCartesian(0, 0, 0);
-			}
-		} else if (gameData.charAt(0) == 'R' && gameData.charAt(1) == 'R') { // if
-																				// both
-																				// are
-																				// right
-			if (strafe_encRevsRF < distSwitch) { // strafe until at switch
-				myRobot.driveCartesian(defaultSpeed, 0, 0);
-				leftFront.setSelectedSensorPosition(0, 0, 10);
-			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF < 12) { // move
-																					// forward
-																					// to
-																					// switch
-				leftFront.getSelectedSensorPosition(0);
-				myRobot.driveCartesian(0, defaultSpeed, 0);
-			} else if (strafe_encRevsRF >= distSwitch && straight_encRevsLF >= 12) { // place
-																						// cube
-				intakeMotor1.set(ControlMode.PercentOutput, releaseCube);
-				intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
-			} else { // do nothing
-				myRobot.driveCartesian(0, 0, 0);
-			}
-		} else if (gameData.charAt(0) != 'R' && gameData.charAt(1) != 'R') { // if
-																				// neither
-																				// are
-																				// right
-			if (strafe_encRevsRF <= 140) {
-				myRobot.driveCartesian(defaultSpeed, 0, 0);
+	public void RightGen() { // starting configuration is back bumper on wall
+		SmartDashboard.putNumber("Right Front Encoder", straight_encRevsRF);
+		SmartDashboard.putNumber("Right Back Encoder", straight_encRevsRB);
+		SmartDashboard.putNumber("Left Front Encoder", straight_encRevsLF);
+		SmartDashboard.putNumber("Step Number", stepNumber);
+		SmartDashboard.putNumber("Program", switBinFin);
+
+		if (gameData.charAt(0) != 'R' && gameData.charAt(1) == 'R') { // going for scale
+			if (stepNumber == 1) { // jerk code
+				if (straight_encRevsRF < 10) { // go straight toward scale
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF < 285) { // continue going straight toward scale
+					myRobot.driveCartesian(0, defaultSpeed, -.01);
+				} else if (straight_encRevsRF >= 285) {
+					stepNumber = 3;
+					rightBack.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) { // turn toward scale
+				SmartDashboard.putNumber("Right Rear Encoder", rightBack.getSelectedSensorPosition(0));
+				SmartDashboard.putNumber("Step Number", stepNumber);
+				if (Math.abs(straight_encRevsRB) < 45) {
+					myRobot.driveCartesian(0, 0, -defaultSpeed);
+				} else if (Math.abs(straight_encRevsRB) >= 45) {
+					myRobot.driveCartesian(0, 0, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+					stepNumber = 4;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 4) { // back away from scale
+				/*
+				 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+				 * elevatorExtension1.set(ControlMode.MotionMagic, 60000);
+				 */
+				if (straight_encRevsLF > -15) {
+					leftFront.getSelectedSensorPosition(0);
+					myRobot.driveCartesian(0, -defaultSpeed, 0);
+				} else if (Math.abs(encRevsElevator) > 59000) {
+					stepNumber = 5;
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			} else if (stepNumber == 5) {
+				// intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+				// intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
 			} else {
 				myRobot.driveCartesian(0, 0, 0);
 			}
+		}
+
+		else if (gameData.charAt(0) == 'R' && gameData.charAt(1) != 'R') { // going for switch
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(.1);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distSwitch) { // continue going straight to switch
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF > distSwitch) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF > -20) { // turn towards switch
+					myRobot.driveCartesian(0, 0, -.4);
+				} else if (straight_encRevsLF <= -20) {
+					stepNumber = 4;
+				}
+			} else if (stepNumber == 4) {
+				myRobot.driveCartesian(0, 0, 0);
+				if (encRevsElevator > 27000) {
+					// intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+					// intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
+			/*
+			 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+			 * elevatorExtension1.set(ControlMode.MotionMagic, 28000); }
+			 */
+		}
+
+		else if (gameData.charAt(0) == 'R' && gameData.charAt(1) == 'R') { // going for switch
+			if (stepNumber == 1) { // jerk motion
+				if (straight_encRevsRF < 10) { // go straight to switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(.1);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= distSwitch) { // continue going straight to switch
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				} else if (straight_encRevsRF > distSwitch) {
+					stepNumber = 3;
+					leftFront.setSelectedSensorPosition(0, 0, 10);
+				}
+			} else if (stepNumber == 3) {
+				if (straight_encRevsLF > -20) { // turn towards switch
+					myRobot.driveCartesian(0, 0, -.4);
+				} else if (straight_encRevsLF <= -20) {
+					stepNumber = 4;
+				}
+			} else if (stepNumber == 4) {
+				myRobot.driveCartesian(0, 0, 0);
+				if (encRevsElevator > 27000) {
+					// intakeMotor1.set(ControlMode.PercentOutput, -releaseCube);
+					// intakeMotor2.set(ControlMode.PercentOutput, releaseCube);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
+			/*
+			 * if (elevSwitchHi.get()) { elevatorExtension1.set(0); } else {
+			 * elevatorExtension1.set(ControlMode.MotionMagic, 28000); }
+			 */
+		}
+
+		else if (gameData.charAt(0) != 'R' && gameData.charAt(1) != 'R') { // cross autoline
+			if (stepNumber == 1) { // jerk code
+				if (straight_encRevsRF < 10) { // go straight toward switch
+					myRobot.driveCartesian(0, .6, 0);
+				} else if (straight_encRevsRF >= 10) {
+					myRobot.driveCartesian(0, 0, 0);
+					Timer.delay(timerDelay);
+					stepNumber = 2;
+				} else {
+				}
+			} else if (stepNumber == 2) {
+				if (straight_encRevsRF <= 140) {
+					myRobot.driveCartesian(0, defaultSpeed, 0);
+				} else {
+					myRobot.driveCartesian(0, 0, 0);
+				}
+			}
 		} else { // do nothing
 			myRobot.driveCartesian(0, 0, 0);
+			gameData = DriverStation.getInstance().getGameSpecificMessage();
 		}
 	}
 
-	// TeleOp
 	@Override
 	public void teleopInit() {
 		releaseCube = -.5;
 		defaultSpeed = .5;
+
+		CameraServer.getInstance().startAutomaticCapture(0); // number is USB port on RIO, we tink
 	}
 
 	@Override
 	public void teleopPeriodic() {
 
-		if (joystick.getRawAxis(0) < .2 || joystick.getRawAxis(0) > .2) {
-			myRobot.driveCartesian(joystick.getRawAxis(0), -joystick.getRawAxis(1), joystick.getRawAxis(2), 0);
-		} else if (joystick.getRawAxis(1) < .2 || joystick.getRawAxis(1) > .2) {
-			myRobot.driveCartesian(joystick.getRawAxis(0), -joystick.getRawAxis(1), joystick.getRawAxis(2), 0);
-		} else if (joystick.getRawAxis(2) < .2 || joystick.getRawAxis(2) > .2) {
-			myRobot.driveCartesian(joystick.getRawAxis(0), -joystick.getRawAxis(1), joystick.getRawAxis(2), 0);
-		} else {
-			myRobot.driveCartesian(0, 0, 0, 0);
-		}
+		SmartDashboard.putBoolean("Elevator Switch High", elevSwitchHi.get());
 
-		// encoder reset
+		myRobot.driveCartesian(joystick.getRawAxis(0) / 1.1, -joystick.getRawAxis(1) / 1.1,
+				joystick.getRawAxis(2) / 1.1, 0);
+
 		if (joystick.getRawButton(5)) {
 			leftFront.setSelectedSensorPosition(0, 0, 10);
 			leftBack.setSelectedSensorPosition(0, 0, 10);
 			rightFront.setSelectedSensorPosition(0, 0, 10);
 			rightBack.setSelectedSensorPosition(0, 0, 10);
-			elevatorExtension2.setSelectedSensorPosition(0, 0, 10);
+			elevatorExtension1.setSelectedSensorPosition(0, 0, 10);
+			navx.zeroYaw();
 		} else {
 			strafe_encRevsLF = leftFront.getSelectedSensorPosition(0);
 			strafe_encRevsRF = rightFront.getSelectedSensorPosition(0);
-			strafe_encRevsLB = leftBack.getSelectedSensorPosition(0);
 			strafe_encRevsRB = rightBack.getSelectedSensorPosition(0);
-			encRevsElevator = elevatorExtension2.getSelectedSensorPosition(0);
+			encRevsElevator = elevatorExtension1.getSelectedSensorPosition(0);
 		}
 
-		// cube intake
-		if (xbox.getRawAxis(3) > 0) {
-			intakeMotor1.set(ControlMode.PercentOutput, 0.6);
-			intakeMotor2.set(ControlMode.PercentOutput, -0.6);
-		}
-		// cube output
-		else if (xbox.getRawAxis(2) > 0) {
+		// cube mechanism
+		if (xbox.getRawAxis(3) > 0 && xbox.getRawButton(6)) {
+			intakeMotor1.configPeakOutputForward(100, 10);
+			intakeMotor1.configPeakOutputReverse(-100, 10);
+			intakeMotor2.configPeakOutputForward(100, 10);
+			intakeMotor2.configPeakOutputReverse(-100, 10);
+			intakeMotor1.set(ControlMode.PercentOutput, joystick.getRawAxis(1) * 2);
+			intakeMotor2.set(ControlMode.PercentOutput, -joystick.getRawAxis(1) * 2);
+		} else if (xbox.getRawAxis(3) > 0 && !xbox.getRawButton(6)) {
 			intakeMotor1.set(ControlMode.PercentOutput, -0.6);
 			intakeMotor2.set(ControlMode.PercentOutput, 0.6);
+		} else if (xbox.getRawAxis(2) > 0) {
+			intakeMotor1.set(ControlMode.PercentOutput, 0.6);
+			intakeMotor2.set(ControlMode.PercentOutput, -0.6);
 		} else {
 			intakeMotor1.set(ControlMode.PercentOutput, 0);
 			intakeMotor2.set(ControlMode.PercentOutput, 0);
 		}
 
+		SmartDashboard.putNumber("Intake Motor 1 Output", intakeMotor1.getMotorOutputPercent());
+		SmartDashboard.putNumber("Intake Motor 2 Output", intakeMotor2.getMotorOutputPercent());
+
 		// Climbing
-		if (xbox.getRawButton(4)) { // button 4 is the Y button
-			hangMotor1.set(ControlMode.PercentOutput, .4);
-			hangMotor2.set(ControlMode.PercentOutput, .4);
-		} else if (xbox.getRawButton(3)) {
-			hangMotor1.set(ControlMode.PercentOutput, -.35);
-			hangMotor2.set(ControlMode.PercentOutput, -.35);
-		} else {
+		if (xbox.getRawButton(4)) { // button 4 is the Y button -- hang
+			hangMotor1.set(ControlMode.PercentOutput, .5);
+			hangMotor2.set(ControlMode.PercentOutput, .5);
+		} else if (xbox.getRawButton(3)) { // button 3 is the X button -- come down from hang
+			hangMotor1.set(ControlMode.PercentOutput, -.5);
+			hangMotor2.set(ControlMode.PercentOutput, -.5);
+		} else { // do nothing
 			hangMotor1.set(ControlMode.PercentOutput, 0);
 			hangMotor2.set(ControlMode.PercentOutput, 0);
 		}
 
 		// Elevator
 		double switchHeight = 30; // heights for presets in inches
-		double scaleMid = 70;
+		double scaleMid = 70; // scale at level position
 
-		// elevator extension
-		/*if (xbox.getRawAxis(5) != 0) {
-			elevatorExtension1.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
-			elevatorExtension2.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
-		} else {
-			elevatorExtension1.set(ControlMode.PercentOutput, 0);
-			elevatorExtension2.set(ControlMode.PercentOutput, 0);
-		}*/
-
-		/*
-		 * // switch preset else if (xbox.getRawButton(2)) { // button 2 is the
-		 * B button if (encRevsElevator > switchHeight) {
-		 * elevatorExtension.set(-.3); } else if (encRevsElevator <=
-		 * switchHeight) { elevatorExtension.set(.3); } // mid-scale preset }
-		 * else if (xbox.getRawButton(3)) { // button 3 is X button if
-		 * (encRevsElevator > scaleMid) { elevatorExtension.set(-.3); } else if
-		 * (encRevsElevator <= scaleMid) { elevatorExtension.set(.3); }
-		 */
-	
-		if (xbox.getRawButton(5)) {
-			elevatorExtension2.set(ControlMode.MotionMagic, -35000);
-			elevatorExtension1.set(ControlMode.Follower, 7);
-		} else {
-			if (xbox.getRawAxis(5) > .1 || xbox.getRawAxis(5) < -.1) {
-				elevatorExtension2.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
-				elevatorExtension1.set(ControlMode.PercentOutput, xbox.getRawAxis(5)/2);
-			} else {
-				elevatorExtension2.set(ControlMode.PercentOutput, 0);
+		if (elevSwitchHi.get()) {
+			if (xbox.getRawAxis(5) > .1) {
+				elevatorExtension1.set(ControlMode.PercentOutput, -xbox.getRawAxis(5) / 2);
+				elevatorExtension2.set(ControlMode.PercentOutput, -xbox.getRawAxis(5) / 2);
+			} else if (xbox.getRawAxis(5) <= 0) {
 				elevatorExtension1.set(ControlMode.PercentOutput, 0);
+				elevatorExtension2.set(ControlMode.PercentOutput, 0); 
+			}
+		} /*else if (elevSwitchLo.get()) {
+			if (xbox.getRawAxis(5) < -.1) {
+				elevatorExtension1.set(ControlMode.PercentOutput, -xbox.getRawAxis(5) / 2);
+				elevatorExtension2.set(ControlMode.PercentOutput, -xbox.getRawAxis(5) / 2);
+			} else if (xbox.getRawAxis(5) >= 0) {
+				elevatorExtension1.set(ControlMode.PercentOutput, 0);
+				elevatorExtension2.set(ControlMode.PercentOutput, 0);
+			}
+		} */ else {  
+			if (xbox.getRawButton(5)) {
+				elevatorExtension1.set(ControlMode.MotionMagic, 23000);
+			} else {
+				if (xbox.getRawAxis(5) > .1 || xbox.getRawAxis(5) < -.1) {
+					elevatorExtension1.set(ControlMode.PercentOutput, -xbox.getRawAxis(5) / 2);
+					elevatorExtension2.set(ControlMode.PercentOutput, -xbox.getRawAxis(5) / 2);
+				} else {
+					elevatorExtension1.set(ControlMode.PercentOutput, 0);
+					elevatorExtension2.set(ControlMode.PercentOutput, 0);
+				}
 			}
 		}
-		
-		
+
 		// SmartDashboard values
-		
-		//encoder values
+
+		// encoder values
 		SmartDashboard.putNumber("Left Front Encoder", strafe_encRevsLF);
-		SmartDashboard.putNumber("Left Rear Encoder", strafe_encRevsLB);
+		SmartDashboard.putNumber("Left Rear Encoder", leftBack.getSelectedSensorPosition(0));
 		SmartDashboard.putNumber("Right Front Encoder", strafe_encRevsRF);
-		SmartDashboard.putNumber("Right Rear Encoder", strafe_encRevsRB);
+		SmartDashboard.putNumber("Right Rear Encoder", rightBack.getSelectedSensorPosition(0));
 		SmartDashboard.putNumber("Elevator Encoder", encRevsElevator);
-		
-		//gyro values
+
+		// gyro values
 		SmartDashboard.putNumber("Gyro Yaw", navx.getYaw());
 		SmartDashboard.putNumber("Gyro Angle", navx.getAngle());
-		
-		//drivetrain voltage
+
+		// drivetrain voltage
 		double leftFrontVoltage = leftFront.getMotorOutputVoltage();
 		double leftBackVoltage = leftBack.getMotorOutputVoltage();
 		double rightFrontVoltage = rightFront.getMotorOutputVoltage();
@@ -721,14 +1130,28 @@ public class Robot extends IterativeRobot {
 		SmartDashboard.putNumber("Left Back Voltage", leftBackVoltage);
 		SmartDashboard.putNumber("Right Front Voltage", rightFrontVoltage);
 		SmartDashboard.putNumber("Right Back Voltage", rightBackVoltage);
-		
-		//elevator voltage outputs
+
+		// elevator voltage outputs
 		double elevatorExt1Voltage = elevatorExtension1.getMotorOutputVoltage();
 		double elevatorExt2Voltage = elevatorExtension2.getMotorOutputVoltage();
-		
+
 		SmartDashboard.putNumber("Elevator Velocity", elevatorExtension2.getSelectedSensorVelocity(0));
 		SmartDashboard.putNumber("Elevator 1 Voltage", elevatorExt1Voltage);
 		SmartDashboard.putNumber("Elevator 2 Voltage", elevatorExt2Voltage);
+	}
+
+	@Override
+	public void disabledPeriodic() {
+		strafe_encRevsLF = leftFront.getSelectedSensorPosition(0);
+		strafe_encRevsRF = rightFront.getSelectedSensorPosition(0);
+		// strafe_encRevsLB = leftBack.getSelectedSensorPosition(0);
+		strafe_encRevsRB = rightBack.getSelectedSensorPosition(0);
+
+		SmartDashboard.putNumber("Left Front Encoder", strafe_encRevsLF);
+		// SmartDashboard.putNumber("Left Rear Encoder", strafe_encRevsLB);
+		SmartDashboard.putNumber("Right Front Encoder", strafe_encRevsRF);
+		SmartDashboard.putNumber("Right Rear Encoder", strafe_encRevsRB);
+
 	}
 
 	@Override
